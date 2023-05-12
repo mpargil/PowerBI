@@ -1,0 +1,60 @@
+let
+    Date = let
+        Source = List.Dates,
+        FiscalMonthCalc = 12-#"Fiscal Start Month",
+        #"Invoked FunctionSource" = Source(Date.AddYears(#date(#"Start Year", 1, 1),-4), Duration.Days(DateTime.Date(Date.AddDays(Date.EndOfYear(Date.AddYears(DateTime.FixedLocalNow(),+8)),1)) - #date(#"Start Year",1,1)), #duration(1, 0, 0, 0)),
+        #"Table from List" = Table.FromList(#"Invoked FunctionSource", Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+        #"Added Index" = Table.AddIndexColumn(#"Table from List", "Index", 1, 1, Int64.Type),
+        #"Renamed Columns" = Table.RenameColumns(#"Added Index",{{"Column1", "Date"}}),
+        #"Changed Type" = Table.TransformColumnTypes(#"Renamed Columns",{{"Date", type date}}),
+        #"Insert Year" = Table.AddColumn(#"Changed Type", "Year", each Date.Year([Date]), Int64.Type),
+        #"Insert Month Number" = Table.AddColumn(#"Insert Year", "Month Number", each Date.Month([Date]), Int64.Type),
+        #"Insert Day" = Table.AddColumn(#"Insert Month Number", "Day", each Date.Day([Date]), Int64.Type),
+        #"Insert Day Name" = Table.AddColumn(#"Insert Day", "Day Name",  each Date.DayOfWeekName([Date]), type text),
+        #"Insert Weekday Number" = Table.AddColumn(#"Insert Day Name", "Weekday Number", each Date.DayOfWeek([Date], Day.Monday) + 1, Int64.Type),
+        #"Insert Is Weekend" = Table.AddColumn(#"Insert Weekday Number", "Is Weekend", each if Date.DayOfWeek([Date]) >= 5 then 1 else 0, Int64.Type),
+        #"Insert Is Weekday" = Table.AddColumn(#"Insert Is Weekend", "Is Weekday", each if Date.DayOfWeek([Date]) < 5  then 1 else 0, Int64.Type ),
+        #"Insert Days in Month" = Table.AddColumn(#"Insert Is Weekday", "Days in Month", each Date.DaysInMonth([Date]), Int64.Type),
+        #"Insert Month Name" = Table.AddColumn(#"Insert Days in Month", "Month Name", each Date.MonthName([Date]), type text),
+        #"Insert Month Name Short" = Table.AddColumn(#"Insert Month Name", "Month Name Short", each Date.ToText( [Date] , "MMM" ), type text),
+        #"Insert YYYY-MM" = Table.AddColumn(#"Insert Month Name Short", "YYYY-MM", each Date.ToText( [Date], "yyyy-MM"), type text),
+        #"Insert MonthShort-Year" = Table.AddColumn(#"Insert YYYY-MM", "Month-Year", each Date.ToText( [Date], "MMM yyyy"), type text),
+        #"Insert YearMonth" = Table.AddColumn(#"Insert MonthShort-Year", "YearMonth", each Date.ToText( [Date], "yyyyMM"), type text),
+        #"Insert Week of Year" = Table.AddColumn(#"Insert YearMonth", "Week of Year", each Date.WeekOfYear([Date]), Int64.Type),
+        #"Insert Week of Month" = Table.AddColumn(#"Insert Week of Year", "Week of Month", each Date.WeekOfMonth([Date]), Int64.Type),
+        #"Insert Day of Week" = Table.AddColumn(#"Insert Week of Month", "Day of Week", each Date.DayOfWeek([Date]), Int64.Type),
+        #"Insert Day of Year" = Table.AddColumn(#"Insert Day of Week", "Day of Year", each Date.DayOfYear([Date]), Int64.Type),
+        #"Insert Iso Week Year" = Table.AddColumn(#"Insert Week of Month", "Iso Week Year", each Date.Year(Date.AddDays([Date], 4-[Weekday Number])), Int64.Type),
+        #"Insert Iso Week Number" = Table.AddColumn(#"Insert Iso Week Year", "Iso Week Number", each (Duration.Days(Date.AddDays([Date], 4-[Weekday Number]) - #date([Iso Week Year], 1 , 7 - Date.DayOfWeek(#date([Iso Week Year],1,4), Day.Monday)))/7)+1, Int64.Type),
+        #"Insert Iso Weekday Extended" = Table.AddColumn(#"Insert Iso Week Number", "Iso Weekday Extended", each Text.From([Iso Week Year]) & "-W" & Text.End("0" & Text.From([Iso Week Number]), 2) & "-"&  Text.From([Weekday Number]), type text),
+        #"Insert Quarter Number" = Table.AddColumn(#"Insert Iso Weekday Extended", "Quarter Number", each Date.QuarterOfYear([Date]), Int64.Type),
+        #"Insert Quarter" = Table.AddColumn(#"Insert Quarter Number", "Quarter", each "Q" & Text.From( Date.QuarterOfYear([Date]) ), type text ),
+        #"Insert Year-Quarter" = Table.AddColumn(#"Insert Quarter", "Year-Quarter", each Text.From( Date.Year([Date]) ) & "-Q" &  Text.From( Date.QuarterOfYear([Date]) ), type text ),
+        #"Insert Fiscal Year" = Table.AddColumn(#"Insert Year-Quarter", "Fiscal Year", each if [Month Number] < #"Fiscal Start Month" then [Year] else [Year]+1, Int64.Type),
+        #"Insert Fiscal Month" = Table.AddColumn(#"Insert Fiscal Year", "Fiscal Month", each if [Month Number] < #"Fiscal Start Month" then [Month Name] else [Month Name], type text),
+        #"Insert Fiscal Month Sort Order" = Table.AddColumn(#"Insert Fiscal Month", "Fiscal Month Sort Order", each Number.Mod(Date.Month([Date])+FiscalMonthCalc ,12)+1, Int64.Type),
+        #"Insert Fiscal Quarter" = Table.AddColumn(#"Insert Fiscal Month Sort Order", "Fiscal Quarter", each if [Fiscal Month Sort Order] >= 1 and [Fiscal Month Sort Order] <= 3 then "F1"
+            else if [Fiscal Month Sort Order] >= 4 and [Fiscal Month Sort Order] <= 6 then "F2"
+            else if [Fiscal Month Sort Order] >= 7 and [Fiscal Month Sort Order] <= 9 then "F3"
+            else if [Fiscal Month Sort Order] >= 10 and [Fiscal Month Sort Order] <= 12 then "F4"
+            else "Q Unknown", type text),
+        #"Insert Fiscal Quarter Sort Number" = Table.AddColumn(#"Insert Fiscal Quarter", "Fiscal Quarter Sort Number", each if [Fiscal Month Sort Order] >= 1 and [Fiscal Month Sort Order] <= 3 then 1
+            else if [Fiscal Month Sort Order] >= 4 and [Fiscal Month Sort Order] <= 6 then 2
+            else if [Fiscal Month Sort Order] >= 7 and [Fiscal Month Sort Order] <= 9 then 3
+            else if [Fiscal Month Sort Order] >= 10 and [Fiscal Month Sort Order] <= 12 then 4
+            else 0 , Int64.Type),
+        #"Insert Age" = Table.AddColumn(#"Insert Fiscal Quarter Sort Number", "Age", each Date.From(DateTime.LocalNow()) - [Date], type duration),
+        #"Insert Start of Day" = Table.AddColumn(#"Insert Age", "Start of Day", each Date.StartOfDay([Date]), type date),
+        #"Insert End of Day" = Table.AddColumn(#"Insert Start of Day", "End of Day", each Date.EndOfDay([Date]), type date),
+        #"Insert Start of Week" = Table.AddColumn(#"Insert End of Day", "Start of Week", each Date.StartOfWeek([Date]), type date),
+        #"Insert End of Week" = Table.AddColumn(#"Insert Start of Week", "End of Week", each Date.EndOfWeek([Date]), type date),
+        #"Insert Start of Month" = Table.AddColumn(#"Insert End of Week", "Start of Month", each Date.StartOfMonth([Date]), type date),
+        #"Insert End of Month" = Table.AddColumn(#"Insert Start of Month", "End of Month", each Date.EndOfMonth([Date]), type date),
+        #"Insert Start of Quarter" = Table.AddColumn(#"Insert End of Month", "Start of Quarter", each Date.StartOfQuarter([Date]), type date),
+        #"Insert End of Quarter" = Table.AddColumn(#"Insert Start of Quarter", "End of Quarter", each Date.EndOfQuarter([Date]), type date),
+        #"Insert Start of Year" = Table.AddColumn(#"Insert End of Quarter", "Start of Year", each Date.StartOfYear([Date]), type date),
+        #"Insert End of Year" = Table.AddColumn(#"Insert Start of Year", "End of Year", each Date.EndOfYear([Date]), type date)
+    in
+        #"Insert End of Year"
+in
+    Date
