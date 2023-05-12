@@ -1,6 +1,5 @@
-# PowerBI DAX and Power Query
-Hints, formulas and scripts in Power BI (DAX and Power Query M)
-## Dax
+# PowerBI DAX Hints, formulas and scripts 
+
 # 15 days moving average
 
 Moving AverageX 7 Days = 
